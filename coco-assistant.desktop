@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Coco Assistant
+Comment=Virtual Assistant with Voice Recognition
+Exec=/usr/local/bin/coco-assistant
+Icon=/usr/local/share/icons/coco-assistant.png
+Terminal=false
+Categories=Utility;Education;
+Keywords=assistant;voice;ai;virtual;
+StartupNotify=true

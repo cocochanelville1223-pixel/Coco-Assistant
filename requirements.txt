@@ -2,9 +2,8 @@ SpeechRecognition
 pyttsx3
 requests
 wikipedia
-pywhatkit
-openai
-threading
 pytz
 geopy
 pvporcupine
+sympy
+pywhatkit
