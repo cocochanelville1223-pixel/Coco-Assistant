@@ -1,9 +1,0 @@
-SpeechRecognition
-pyttsx3
-requests
-wikipedia
-pywhatkit
-openai
-pytz
-geopy
-pvporcupine
