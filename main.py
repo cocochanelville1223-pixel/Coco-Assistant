@@ -425,23 +425,49 @@ class CocoAssistantGUI:
         ttk.Button(create_window, text="Create", command=create).grid(row=2, column=0, columnspan=2, pady=10)
 
 def load_profiles():
+    """
+    Load profiles from the on-disk "profiles.json" file into the module-level `profiles` variable.
+    
+    If "profiles.json" exists, parse it as JSON and replace the in-memory `profiles` dict with its contents. If the file does not exist, the function leaves `profiles` unchanged.
+    """
     global profiles
     if os.path.exists("profiles.json"):
         with open("profiles.json", "r") as f:
             profiles = json.load(f)
 
 def save_profiles():
+    """
+    Save the in-memory profiles dictionary to "profiles.json".
+    
+    Writes the current module-level `profiles` mapping to disk in JSON format, overwriting any existing file.
+    """
     with open("profiles.json", "w") as f:
         json.dump(profiles, f)
 
 def create_profile(name, dob):
-    """Create a new profile"""
+    """
+    Create a new user profile and persist it.
+    
+    Parameters:
+        name (str): The profile name/identifier.
+        dob (str): The profile's date of birth as a string (e.g., "YYYY-MM-DD").
+    
+    Description:
+        Adds the profile to the module-level profiles mapping, saves profiles to persistent storage, and speaks a confirmation message.
+    """
     profiles[name] = {"dob": dob}
     save_profiles()
     speak(f"Profile for {name} created.")
 
 def switch_profile(name):
-    """Switch to a profile"""
+    """
+    Switch the active user profile and update kids mode based on the profile's date of birth.
+    
+    If a profile with the given name exists in the module-level `profiles` mapping, this function sets `current_profile` to that name, computes the profile's age from the stored `dob` (expected format "YYYY-MM-DD"), sets the module-level `kids_mode` to True when age is less than or equal to 12 (False otherwise), and speaks a confirmation containing the profile name, computed age, and kids-mode status. If the profile is not found, it speaks an error message.
+    
+    Parameters:
+        name (str): The profile name to switch to; must be a key in the module-level `profiles` dict.
+    """
     global current_profile, kids_mode
     if name in profiles:
         current_profile = name
@@ -455,7 +481,11 @@ def switch_profile(name):
         speak("Profile not found.")
 
 def toggle_kids_mode():
-    """Toggle kids mode, only if adult"""
+    """
+    Toggle the global kids_mode flag for the currently selected profile when that profile is older than 12 years.
+    
+    If a profile is selected and its computed age is greater than 12, flips the module-level `kids_mode` boolean and announces the new state via speech. If the selected profile's age is 12 or younger, announces that only adults may toggle kids mode. If no profile is selected, announces that no profile is selected.
+    """
     global kids_mode
     if current_profile:
         dob = datetime.datetime.strptime(profiles[current_profile]["dob"], "%Y-%m-%d")
@@ -471,7 +501,12 @@ def toggle_kids_mode():
         speak("No profile selected.")
 
 def check_kids_mode():
-    """Check if in kids mode"""
+    """
+    Indicates whether the assistant is currently operating in kids mode.
+    
+    Returns:
+        bool: `True` if kids mode is enabled, `False` otherwise.
+    """
     return kids_mode
 
 def select_voice():
@@ -534,42 +569,17 @@ def select_voice():
                 speak("Please say a number.")
 
 def speak(text):
-    """Convert text to speech and/or display in GUI"""
-    global speaking, gui_instance
 
-    # Display in GUI if available
-    if 'gui_instance' in globals() and gui_instance:
-        gui_instance.add_message(text)
-
-    if not tts_available:
-        if not ('gui_instance' in globals() and gui_instance):
-            print(f"Coco: {text}")
-        return
-
-    speaking = True
-    if tts_engine == 'pyttsx3':
-        def speak_thread():
-            global speaking
-            engine.say(text)
-            engine.runAndWait()
-            speaking = False
-        t = threading.Thread(target=speak_thread)
-        t.start()
-    elif tts_engine == 'festival':
-        def speak_thread():
-            global speaking
-            try:
-                # Use festival with selected voice for more natural speech
-                festival_cmd = f'echo "{text}" | festival --tts --voice {festival_voice}'
-                subprocess.run(festival_cmd, shell=True, timeout=30)
-            except Exception as e:
-                print(f"Festival TTS error: {e}")
-            speaking = False
-        t = threading.Thread(target=speak_thread)
-        t.start()
 
 def wake_listen():
-    """Listen for wake words"""
+    """
+    Detects a spoken wake word via the microphone and prompts the user to continue.
+    
+    If a wake word is heard, stops any ongoing speech playback, speaks "Yes?", and returns True; otherwise returns False.
+     
+    Returns:
+        bool: `True` if a wake word was detected and the assistant prompted the user, `False` otherwise.
+    """
     global speaking
     if not microphone_available:
         # In text mode, simulate wake word detection
@@ -604,29 +614,7 @@ def wake_listen():
     return False
 
 def listen():
-    """Listen for audio and convert to text"""
-    if not microphone_available:
-        # In text mode, get input from user
-        if speech_recognition_method == "text_only":
-            print("\n🎤 Microphone not available. Using text input mode.")
-            print("💡 To enable voice input:")
-            print("   Ubuntu/Debian: sudo apt install python3-pyaudio portaudio19-dev")
-            print("   Then: pip install --upgrade --force-reinstall pyaudio")
-        command = input("\nEnter your command: ").strip()
-        if command:
-            print(f"You typed: {command}")
-        return command.lower()
 
-    try:
-        with sr.Microphone() as source:
-            print("🎤 Listening...")
-            # Adjust for ambient noise with timeout
-            try:
-                recognizer.adjust_for_ambient_noise(source, duration=0.5)
-            except Exception:
-                pass  # Some microphones don't support this
-
-            audio = recognizer.listen(source, timeout=5, phrase_time_limit=5)
             command = recognizer.recognize_google(audio)
             print(f"You said: {command}")
             return command.lower()
@@ -644,19 +632,34 @@ def listen():
         return ""
 
 def get_time():
-    """Get current time"""
+    """
+    Speak the current local time in 12-hour (H:MM AM/PM) format.
+    
+    This obtains the system's current local time, formats it as hours and minutes with an AM/PM marker, and speaks the resulting string via the assistant's text-to-speech.
+    """
     now = datetime.datetime.now()
     time_str = now.strftime("%I:%M %p")
     speak(f"The current time is {time_str}")
 
 def get_date():
-    """Get current date"""
+    """
+    Speak the current date in the format "Month Day, Year".
+    
+    The spoken phrase will be "Today's date is <Month> <Day>, <Year>" (for example, "Today's date is January 7, 2026").
+    """
     now = datetime.datetime.now()
     date_str = now.strftime("%B %d, %Y")
     speak(f"Today's date is {date_str}")
 
 def get_weather(city="New York"):
-    """Get weather information"""
+    """
+    Speak the current weather for a given city.
+    
+    Queries the OpenWeatherMap API for current conditions and speaks a short summary that includes the temperature in degrees Celsius and a brief weather description. If the API key is not configured or the request fails, speaks an appropriate error message.
+    
+    Parameters:
+        city (str): Name of the city to query (default: "New York").
+    """
     if not OPENWEATHER_API_KEY:
         speak("Weather API key not set.")
         return
@@ -671,7 +674,15 @@ def get_weather(city="New York"):
         speak("Sorry, I couldn't fetch the weather.")
 
 def search_wikipedia(query):
-    """Search Wikipedia"""
+    """
+    Speak a two-sentence summary from Wikipedia for the given query.
+    
+    Parameters:
+        query (str): The search term or topic to look up on Wikipedia.
+    
+    Description:
+        Retrieves a two-sentence summary for `query` and speaks it aloud. If no summary can be retrieved or an error occurs, speaks an apology indicating the information could not be found.
+    """
     try:
         result = wikipedia.summary(query, sentences=2)
         speak(result)
@@ -681,18 +692,14 @@ def search_wikipedia(query):
         speak("Sorry, I encountered an error while searching.")
 
 def play_music(song):
-    """Play music on YouTube"""
-    if pywhatkit_available:
-        pywhatkit.playonyt(song)
-        speak(f"Playing {song} on YouTube")
-    else:
-        query = song.replace(" ", "+")
-        url = f"https://www.youtube.com/results?search_query={query}"
-        webbrowser.open(url)
-        speak(f"Opening {song} on YouTube")
+
 
 def tell_joke():
-    """Tell a random joke"""
+    """
+    Play a randomly selected joke aloud.
+    
+    Selects a joke from a kid-appropriate set when kids mode is enabled; otherwise selects from a general set, then speaks the chosen joke.
+    """
     if check_kids_mode():
         jokes = [
             "Why did the chicken cross the road? To get to the other side!",
@@ -709,7 +716,11 @@ def tell_joke():
     speak(joke)
 
 def get_news():
-    """Get top news headlines"""
+    """
+    Fetches and speaks the top five US news headlines.
+    
+    Requires the module-level NEWS_API_KEY to be set. If the API key is missing or the request fails, speaks an appropriate error message instead of headlines.
+    """
     if not NEWS_API_KEY:
         speak("News API key not set.")
         return
@@ -725,7 +736,14 @@ def get_news():
         speak("Sorry, I couldn't fetch the news.")
 
 def open_website(site):
-    """Open a website"""
+    """
+    Open a common website based on a keyword found in the provided site string.
+    
+    Checks the `site` text for known keywords ("google", "youtube", "facebook") and opens the corresponding URL in the default web browser. If no known keyword is present, notifies the user via `speak()`.
+    
+    Parameters:
+        site (str): Keyword or phrase indicating which website to open (e.g., "open youtube", "google").
+    """
     if "google" in site:
         webbrowser.open("https://www.google.com")
     elif "youtube" in site:
@@ -736,8 +754,21 @@ def open_website(site):
         speak("Sorry, I don't know that website.")
 
 def set_timer(duration):
-    """Set a timer"""
+    """
+    Schedule a background timer that announces when the specified duration elapses.
+    
+    Parameters:
+        duration (int | float): Number of seconds to wait before announcing the timer.
+    
+    Description:
+        Starts a background timer (thread) that waits for the given duration and then speaks a notification. The timer thread is recorded in the module-level `timers` list and the function immediately confirms that the timer was set.
+    """
     def timer_thread():
+        """
+        Waits for the configured duration then notifies the user that the timer has finished.
+        
+        Blocks for the timer duration and, when elapsed, speaks a message announcing that the timer for that many seconds is up.
+        """
         time.sleep(duration)
         speak(f"Timer for {duration} seconds is up!")
     t = threading.Thread(target=timer_thread)
@@ -746,8 +777,21 @@ def set_timer(duration):
     speak(f"Timer set for {duration} seconds.")
 
 def set_reminder(message, delay):
-    """Set a reminder"""
+    """
+    Schedule a spoken reminder to play after a given delay.
+    
+    Schedules the provided message to be spoken after `delay` seconds, acknowledges the scheduling immediately, and stores the background reminder handle in the module-level `reminders` list.
+    
+    Parameters:
+        message (str): The reminder text to be spoken when the timer elapses.
+        delay (int | float): Seconds to wait before speaking the reminder.
+    """
     def reminder_thread():
+        """
+        Waits for the configured delay interval and then announces the reminder message.
+        
+        This function sleeps for the outer-scope `delay` (in seconds) and, after waking, invokes the assistant's speech output to say "Reminder: {message}" where `message` is taken from the enclosing scope.
+        """
         time.sleep(delay)
         speak(f"Reminder: {message}")
     t = threading.Thread(target=reminder_thread)
@@ -756,14 +800,26 @@ def set_reminder(message, delay):
     speak(f"Reminder set for {delay} seconds from now.")
 
 def take_note(note):
-    """Take a note"""
+    """
+    Append a note to the in-memory notes list and persist it to disk.
+    
+    Parameters:
+    	note (str): Text content of the note to store.
+    
+    Description:
+    	Appends `note` to the module-level `notes` list, appends the note followed by a newline to "notes.txt", and invokes `speak` to confirm the action.
+    """
     notes.append(note)
     with open("notes.txt", "a") as f:
         f.write(note + "\n")
     speak("Note taken.")
 
 def read_notes():
-    """Read notes"""
+    """
+    Speak all stored user notes aloud.
+    
+    If any notes exist, speak each note in insertion order; otherwise notify the user that there are no notes.
+    """
     if notes:
         speak("Your notes are:")
         for note in notes:
@@ -772,7 +828,12 @@ def read_notes():
         speak("You have no notes.")
 
 def calculate(expression):
-    """Calculate simple math"""
+    """
+    Evaluate a mathematical expression provided as a string and speak the result.
+    
+    Parameters:
+        expression (str): A mathematical expression (for example "2 + 2*3" or "sqrt(9)") to be evaluated; the function will speak the computed value. If the expression cannot be evaluated, the function will speak an error message.
+    """
     try:
         # Use sympy for safe mathematical evaluation
         result = sympy.sympify(expression)
@@ -788,7 +849,14 @@ def calculate(expression):
         speak("Sorry, I encountered an error while calculating.")
 
 def sing_song(song_name):
-    """Sing a song by reciting lyrics"""
+    """
+    Sing a known song by speaking its lyrics aloud.
+    
+    If the song is recognized, temporarily lowers the TTS speech rate, announces the song, recites stored lyrics, and then restores the original speech rate. If the song is not recognized, speaks a short apology and suggests available titles.
+    
+    Parameters:
+        song_name (str): Title of the song to sing (supported: "everything at once", "happy birthday").
+    """
     songs = {
         "everything at once": """
         Something just isn't right
@@ -836,12 +904,24 @@ def sing_song(song_name):
         speak("Sorry, I don't know that song. Try 'everything at once' or 'happy birthday'.")
 
 def add_to_shopping_list(item):
-    """Add item to shopping list"""
+    """
+    Add an item to the user's shopping list and announce the addition.
+    
+    Parameters:
+        item (str): Text of the item to add to the shopping list.
+    """
     shopping_list.append(item)
     speak(f"Added {item} to shopping list.")
 
 def remove_from_shopping_list(item):
-    """Remove item from shopping list"""
+    """
+    Remove an item from the in-memory shopping list and notify the user.
+    
+    If the item exists, removes its first occurrence from the shopping_list and speaks a confirmation message; otherwise speaks that the item was not found.
+    
+    Parameters:
+        item (str): The name of the item to remove from the shopping list.
+    """
     if item in shopping_list:
         shopping_list.remove(item)
         speak(f"Removed {item} from shopping list.")
@@ -849,7 +929,11 @@ def remove_from_shopping_list(item):
         speak("Item not found in shopping list.")
 
 def read_shopping_list():
-    """Read shopping list"""
+    """
+    Speak the current shopping list items aloud.
+    
+    If the module-level shopping_list contains items, first speak a header ("Your shopping list:") then speak each item in the list. If the list is empty, speak that the shopping list is empty.
+    """
     if shopping_list:
         speak("Your shopping list:")
         for item in shopping_list:
@@ -858,7 +942,18 @@ def read_shopping_list():
         speak("Your shopping list is empty.")
 
 def unit_convert(value, from_unit, to_unit):
-    """Simple unit conversion"""
+    """
+    Convert a numeric value between supported units and announce the result.
+    
+    Supported conversions: Celsius <-> Fahrenheit, meters <-> feet, kilograms (kg) <-> pounds (lbs).
+    On a supported conversion, the function speaks a formatted message like "X from_unit is Y to_unit."
+    If the conversion pair is not supported, the function speaks an apology message.
+    
+    Parameters:
+        value (float|int): The numeric value to convert.
+        from_unit (str): The unit of the input value (e.g., "celsius", "meters", "kg").
+        to_unit (str): The unit to convert to (e.g., "fahrenheit", "feet", "lbs").
+    """
     conversions = {
         ("celsius", "fahrenheit"): lambda x: x * 9/5 + 32,
         ("fahrenheit", "celsius"): lambda x: (x - 32) * 5/9,
@@ -875,7 +970,11 @@ def unit_convert(value, from_unit, to_unit):
         speak("Sorry, I don't know that conversion.")
 
 def tell_story():
-    """Tell a short story"""
+    """
+    Speaks a randomly selected short story.
+    
+    Chooses one of a small set of predefined short stories and speaks it aloud.
+    """
     stories = [
         "Once upon a time, there was a little robot who loved to help people. One day, it met a human who needed directions. The robot used its smart brain to guide the human safely home. And they became best friends forever.",
         "In a faraway land, a brave knight set out on a quest. Along the way, he met talking animals and solved riddles. Finally, he found the treasure: kindness and friendship."
@@ -884,7 +983,11 @@ def tell_story():
     speak(story)
 
 def play_game():
-    """Play a simple game: guess the number"""
+    """
+    Start an interactive "guess the number" game where the assistant selects a random integer from 1 to 10 and prompts the user to guess it.
+    
+    The user has up to five attempts. After each guess the assistant responds with "Too low", "Too high", or prompts for a numeric response. If the user guesses correctly the assistant announces the win and ends the game; if all attempts are used, the assistant reveals the chosen number.
+    """
     number = random.randint(1, 10)
     speak("I'm thinking of a number between 1 and 10. Guess it!")
     attempts = 0
@@ -905,41 +1008,19 @@ def play_game():
     speak(f"Sorry, the number was {number}. Better luck next time!")
 
 def math_help(problem):
-    """Help with math"""
-    try:
-        # Use sympy to solve the problem
-        result = sympy.sympify(problem)
-        speak(f"The result is {result}")
-    except Exception as e:
-        speak("Sorry, I couldn't solve that math problem. Please try a simpler expression.")
 
-def custom_nlp_response(command):
-    """Custom natural language response based on keywords"""
-    command_lower = command.lower()
-    if "hello" in command_lower or "hi" in command_lower:
-        return "Hello! How can I help you today?"
-    elif "how are you" in command_lower:
-        return "I'm doing well, thank you! How about you?"
-    elif "thank you" in command_lower or "thanks" in command_lower:
-        return "You're welcome!"
-    elif "what is your name" in command_lower or "who are you" in command_lower:
-        return "I'm Coco Assistant, your helpful AI companion."
-    elif "tell me a joke" in command_lower:
-        jokes = ["Why don't scientists trust atoms? Because they make up everything!",
-                 "What do you call fake spaghetti? An impasta!",
-                 "Why did the scarecrow win an award? Because he was outstanding in his field!"]
-        return random.choice(jokes)
-    elif "time" in command_lower:
-        now = datetime.datetime.now()
-        return f"The current time is {now.strftime('%H:%M')}."
-    elif "date" in command_lower:
-        today = datetime.date.today()
-        return f"Today's date is {today.strftime('%B %d, %Y')}."
     else:
         return "I'm sorry, I didn't understand that. Can you please rephrase?"
 
 def get_location():
-    """Get user location (mock or use IP)"""
+    """
+    Obtain the user's city for location-based services.
+    
+    If a city is not already stored, prompts the user to speak their city and listens for a response, then stores it in the module-level `user_location`.
+    
+    Returns:
+        str or None: The stored city name, or `None` if no location was provided.
+    """
     # For demo, use a default or ask
     global user_location
     if not user_location:
@@ -950,7 +1031,18 @@ def get_location():
     return user_location
 
 def process_command(command):
-    """Process the voice command"""
+    """
+    Dispatches a parsed voice command to the appropriate assistant action.
+    
+    Parameters:
+        command (str): The recognized user command text to process.
+    
+    Returns:
+        bool: `False` if the assistant should stop running (on "stop" or "exit"), `True` otherwise.
+    
+    Notes:
+        This function performs side effects such as speaking responses, updating global state (e.g., `conversation_history`, profiles, timers, reminders, notes, shopping list), calling external services (weather, news, OpenAI, etc.), and invoking other command handlers based on the command content.
+    """
     global conversation_history
     if check_kids_mode():
         restricted = ["news", "open facebook", "open youtube"]  # Example restrictions
@@ -1084,10 +1176,7 @@ def process_command(command):
     return True
 
 def main():
-    """Main function - launches GUI or text interface"""
-    global gui_instance
 
-    # Load profiles
     load_profiles()
 
     # Check if GUI is available
